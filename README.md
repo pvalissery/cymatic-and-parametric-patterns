@@ -25,11 +25,11 @@ The parametric generator shows you the **ideal**—how a wave looks when mathema
 
 ## The Significance of Simplicity
 
-There is no AI generating these images. There are no massive data sets or neural networks. The beauty in these patterns comes entirely from **emergent complexity**. By taking incredibly simple, foundational rules—a sine wave intersecting with another sine wave, or a particle moving away from a high value toward a low value—and repeating them thousands of times, highly complex, deeply symmetrical, and mesmerizing patterns emerge naturally.
+There is no AI generating these images. There are no massive data sets or neural networks. The beauty in these patterns comes entirely from **emergent complexity**. By taking incredibly simple, foundational rules: a sine wave intersecting with another sine wave, or a particle moving away from a high value toward a low value, and repeating them thousands of times, highly complex, deeply symmetrical, and mesmerizing patterns emerge naturally.
 
-It is a reminder that you don't need heavy computational brute force to create something beautiful. You just need to set up the right boundaries, apply a frequency, and watch as complexity becomes part of the emergent property of the system. 
+It is a reminder that you don't need brute force to create something beautiful. You just need to set up the right boundaries, apply a frequency, and watch as complexity becomes part of the emergent property of the system. This makes me think about designing something to visualize and manipulate fractals. 
 
 ## How to Run
 Just clone the repo and double-click either HTML file to open it in your browser.
 
-[Click here]() to visualize the parametric generator on your browser now
+[Click here](https://pvalissery.github.io/cymatic-and-parametric-patterns/) to visualize the parametric generator on your browser now
