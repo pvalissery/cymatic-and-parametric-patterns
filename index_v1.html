@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cymatic Pattern Generator</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent: #00adb5;
+        }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #sidebar {
+            width: 320px;
+            background: var(--panel-bg);
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            overflow-y: auto;
+            z-index: 10;
+        }
+        #canvas-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        canvas {
+            background: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #333; padding-bottom: 10px;}
+        .control-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: #aaa; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val-display { float: right; color: var(--accent); font-weight: bold; }
+        select, input[type="color"] { width: 100%; padding: 5px; background: #333; color: white; border: 1px solid #444; border-radius: 4px; }
+        button {
+            width: 100%; padding: 10px; background: var(--accent); color: #000; border: none;
+            border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+        button:hover { background: #008c93; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>Cymatics Controls</h2>
+
+        <div class="control-group">
+            <label>Driving Frequency (Hz) <span id="freqVal" class="val-display">432</span></label>
+            <input type="range" id="freq" min="20" max="2000" value="432">
+        </div>
+        <div class="control-group">
+            <label>Amplitude <span id="ampVal" class="val-display">0.5</span></label>
+            <input type="range" id="amp" min="0" max="1" step="0.01" value="0.5">
+        </div>
+
+        <div class="control-group">
+            <label>Particle Size (px) <span id="sizeVal" class="val-display">2</span></label>
+            <input type="range" id="size" min="1" max="10" value="2">
+        </div>
+        <div class="control-group">
+            <label>Particle Density (Cohesion) <span id="densityVal" class="val-display">5</span></label>
+            <input type="range" id="density" min="1" max="10" value="5">
+        </div>
+        <div class="control-group">
+            <label>Particle Depth (Count) <span id="depthVal" class="val-display">5000</span></label>
+            <input type="range" id="depth" min="500" max="10000" step="100" value="5000">
+        </div>
+
+        <div class="control-group">
+            <label>Boundary Shape</label>
+            <select id="shape">
+                <option value="square">Square</option>
+                <option value="circular">Circular</option>
+                <option value="triangular">Triangular</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Boundary Dimension (px) <span id="dimVal" class="val-display">600</span></label>
+            <input type="range" id="dim" min="200" max="800" value="600">
+        </div>
+
+        <div class="control-group">
+            <label>Colour Mode</label>
+            <select id="colorMode">
+                <option value="uniform">Uniform Colour</option>
+                <option value="gradient">Density Gradient (Pseudo)</option>
+            </select>
+        </div>
+        <div class="control-group" id="colorPickerGroup">
+            <label>Uniform Colour</label>
+            <input type="color" id="uniformColor" value="#00adb5">
+        </div>
+
+        <button id="btnPng">Export as PNG</button>
+        <button id="btnJpeg">Export as JPEG</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="cymaticCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('cymaticCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        
+        let particles = [];
+        let animationId;
+
+        // UI Elements
+        const els = {
+            freq: document.getElementById('freq'), freqVal: document.getElementById('freqVal'),
+            amp: document.getElementById('amp'), ampVal: document.getElementById('ampVal'),
+            size: document.getElementById('size'), sizeVal: document.getElementById('sizeVal'),
+            density: document.getElementById('density'), densityVal: document.getElementById('densityVal'),
+            depth: document.getElementById('depth'), depthVal: document.getElementById('depthVal'),
+            shape: document.getElementById('shape'),
+            dim: document.getElementById('dim'), dimVal: document.getElementById('dimVal'),
+            colorMode: document.getElementById('colorMode'),
+            uniformColor: document.getElementById('uniformColor'),
+            colorPickerGroup: document.getElementById('colorPickerGroup')
+        };
+
+        // Sync slider values to text displays
+        Object.keys(els).forEach(key => {
+            if(els[key].type === 'range') {
+                els[key].addEventListener('input', (e) => {
+                    els[key+'Val'].innerText = e.target.value;
+                    if(key === 'depth' || key === 'dim') initCanvas();
+                });
+            }
+        });
+
+        els.colorMode.addEventListener('change', (e) => {
+            els.colorPickerGroup.style.display = e.target.value === 'uniform' ? 'block' : 'none';
+        });
+
+        // Standing wave approximation logic (Pseudo-Chladni)
+        function getWaveIntensity(x, y, shape, freq, L) {
+            // Normalize coordinates between -1 and 1
+            let nx = (x / L) * 2 - 1;
+            let ny = (y / L) * 2 - 1;
+            
+            // Map frequency (20-2000) to modal numbers (n, m)
+            // This is an arbitrary scaling to create distinct visual modes
+            let n = Math.max(1, Math.floor((freq / 200) + (freq % 10) / 2));
+            let m = Math.max(1, Math.floor((freq / 150) - (freq % 7) / 2));
+            
+            if (shape === 'square' || shape === 'triangular') {
+                // Classic Chladni plate approximation formula
+                return Math.abs(Math.sin(n * Math.PI * nx) * Math.sin(m * Math.PI * ny) + 
+                                Math.sin(m * Math.PI * nx) * Math.sin(n * Math.PI * ny));
+            } else if (shape === 'circular') {
+                // Polar standing wave approximation
+                let r = Math.sqrt(nx*nx + ny*ny);
+                let theta = Math.atan2(ny, nx);
+                return Math.abs(Math.sin(n * Math.PI * r) * Math.cos(m * theta));
+            }
+        }
+
+        // Particle Class
+        class Particle {
+            constructor(L) {
+                this.L = L;
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * this.L;
+                this.y = Math.random() * this.L;
+                this.vx = 0;
+                this.vy = 0;
+            }
+            update(freq, amp, densityFactor, shape, boundsL) {
+                // 1. Add randomized jitter based on amplitude (simulating plate vibration)
+                // Particles jump higher where there are anti-nodes.
+                let intensity = getWaveIntensity(this.x, this.y, shape, freq, boundsL);
+                
+                let jitter = (amp * 5) * intensity; 
+                this.x += (Math.random() - 0.5) * jitter;
+                this.y += (Math.random() - 0.5) * jitter;
+
+                // 2. Drift towards nodes (where intensity approaches 0)
+                // We sample nearby points to find the gradient
+                let step = densityFactor * 0.5;
+                let intX = getWaveIntensity(this.x + step, this.y, shape, freq, boundsL);
+                let intY = getWaveIntensity(this.x, this.y + step, shape, freq, boundsL);
+                
+                let gradX = intX - intensity;
+                let gradY = intY - intensity;
+
+                // Move in opposite direction of gradient
+                this.vx -= gradX * 2;
+                this.vy -= gradY * 2;
+                
+                // Add friction so they settle
+                this.vx *= 0.8;
+                this.vy *= 0.8;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // 3. Boundary constraints
+                if (shape === 'circular') {
+                    let r = Math.sqrt(Math.pow(this.x - boundsL/2, 2) + Math.pow(this.y - boundsL/2, 2));
+                    if (r > boundsL/2) this.reset();
+                } else if (shape === 'triangular') {
+                    // Simple equilateral triangle bounds
+                    let mid = boundsL/2;
+                    let dy = this.y;
+                    let dx = Math.abs(this.x - mid);
+                    if (this.y > boundsL || this.y < 0 || dx > dy / Math.sqrt(3)) {
+                        this.reset();
+                    }
+                } else {
+                    if (this.x < 0 || this.x > boundsL || this.y < 0 || this.y > boundsL) {
+                        this.reset();
+                    }
+                }
+                
+                return intensity; // return for colouring
+            }
+        }
+
+        function initCanvas() {
+            let dim = parseInt(els.dim.value);
+            let count = parseInt(els.depth.value);
+            
+            canvas.width = dim;
+            canvas.height = dim;
+            
+            particles = [];
+            for(let i=0; i<count; i++) {
+                particles.push(new Particle(dim));
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; // Trailing effect
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            let freq = parseFloat(els.freq.value);
+            let amp = parseFloat(els.amp.value);
+            let size = parseFloat(els.size.value);
+            let densityFactor = parseFloat(els.density.value);
+            let shape = els.shape.value;
+            let L = canvas.width;
+            let cMode = els.colorMode.value;
+            let uColor = els.uniformColor.value;
+
+            for(let p of particles) {
+                let intensity = p.update(freq, amp, densityFactor, shape, L);
+                
+                if (cMode === 'uniform') {
+                    ctx.fillStyle = uColor;
+                } else {
+                    // Density Gradient mapping: Node proximity maps from blue -> green -> yellow -> red
+                    let hue = (1 - intensity) * 240; 
+                    ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+                }
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, size/2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw boundaries if not square
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            if(shape === 'circular') {
+                ctx.arc(L/2, L/2, L/2, 0, Math.PI*2);
+            } else if (shape === 'triangular') {
+                ctx.moveTo(L/2, 0);
+                ctx.lineTo(0, L);
+                ctx.lineTo(L, L);
+                ctx.closePath();
+            }
+            ctx.stroke();
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Export Functions
+        function downloadImage(mimeType, ext) {
+            const link = document.createElement('a');
+            link.download = `cymatic-pattern.${ext}`;
+            link.href = canvas.toDataURL(mimeType);
+            link.click();
+        }
+
+        document.getElementById('btnPng').addEventListener('click', () => downloadImage('image/png', 'png'));
+        document.getElementById('btnJpeg').addEventListener('click', () => downloadImage('image/jpeg', 'jpg'));
+
+        // Boot it up
+        initCanvas();
+        animate();
+    </script>
+</body>
+</html>
