@@ -5,7 +5,7 @@ This repository contains two browser tools that explore two entirely different w
 ![image](image.png)
 
 ### 1. The Physical Simulation (`index_v1.html`)
-This is a particle-based Chladni plate simulator. In the real world, if you run a bow across a metal plate covered in sand, the plate vibrates at specific resonant frequencies. The sand bounces around until it settles into the "nodes"—the exact geometric lines where the standing waves cancel each other out and the vibration is zero.
+This is a particle-based Chladni plate simulator. In the real world, if you run a bow across a metal plate covered in sand, the plate vibrates at specific resonant frequencies. The sand bounces around until it settles into the "nodes"; the exact geometric lines where the standing waves cancel each other out and the vibration is zero.
 * Uses 2D standing wave approximations to calculate anti-nodes and zero-points.
 * Simulates thousands of independent particles calculating their local gradients and drifting toward the nodal dead zones.
 * Chaotic, and organic. It takes time for the patterns to resolve as the particles fight digital friction to find their resting places.
